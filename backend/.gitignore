@@ -1,0 +1,15 @@
+# Build files
+target/
+!.mvn/wrapper/maven-wrapper.jar
+
+# IDE files
+.idea/
+*.iml
+.vscode/
+
+# Log files
+*.log
+
+# Secrets (!!API 키 보호!!)
+application.properties
+application-*.properties
