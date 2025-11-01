@@ -1,6 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import './App.css';
 
+// 1. 백엔드(Render) 주소를 "변수"로 만듭니다.
+const API_BASE_URL = "https://insider-trading-tracker.onrender.com"; // 님의 Render URL
+
 function App() {
     // --- State 선언부 ---
     const [ticker, setTicker] = useState("AAPL"); // 현재 input에 입력된 값
@@ -13,28 +16,29 @@ function App() {
     const [dailyFeed, setDailyFeed] = useState(null);
     const [feedError, setFeedError] = useState(null);
 
-    // 1. --- '자동완성' 기능용 State ---
+    // --- '자동완성' 기능용 State ---
     const [searchTerm, setSearchTerm] = useState("AAPL"); // 검색창에 "실시간으로" 입력 중인 값
     const [suggestions, setSuggestions] = useState([]); // 자동완성 추천 목록
 
     // --- 함수 선언부 ---
 
-    // 2. useEffect: 'searchTerm' (실시간 입력값)이 바뀔 때마다 실행됨
+    // useEffect: 'searchTerm' (실시간 입력값)이 바뀔 때마다 실행됨
     useEffect(() => {
-        // 입력값이 비어있으면 API 호출 안 함
         if (searchTerm.trim() === "") {
-            setSuggestions([]); // 목록 비우기
+            setSuggestions([]);
             return;
         }
 
-        // 'T' 입력 -> 0.5초 뒤에 API 호출 (Debounce: API 과다 호출 방지)
+        // 0.5초 뒤에 API 호출 (Debounce)
         const delayDebounceFn = setTimeout(() => {
             console.log("Fetching suggestions for: ", searchTerm);
-            fetch(`http://localhost:8080/api/v1/search?q=${searchTerm}`)
+
+            // 2. [수정] 자동완성 API 주소 변경
+            fetch(`${API_BASE_URL}/api/v1/search?q=${searchTerm}`)
                 .then(response => response.json())
                 .then(jsonData => {
                     if (jsonData.result) {
-                        setSuggestions(jsonData.result); // 추천 목록 state에 저장
+                        setSuggestions(jsonData.result);
                     } else {
                         setSuggestions([]);
                     }
@@ -43,23 +47,29 @@ function App() {
                     console.error("Suggestion fetch error:", err.message);
                     setSuggestions([]);
                 });
-        }, 500); // 500ms (0.5초) 딜레이
+        }, 500);
 
-        // 사용자가 타이핑을 계속 치면, 이전 setTimeout을 취소함
         return () => clearTimeout(delayDebounceFn);
+    }, [searchTerm]);
 
-    }, [searchTerm]); // 'searchTerm'이 바뀔 때만 이 함수를 실행
 
+    // '최신 피드' API 호출 함수
+    const fetchDailyFeed = () => {
+        console.log("Fetching daily feed...");
 
-    // (최신 피드 로드)
-    useEffect(() => {
-        fetch(`http://localhost:8080/api/v1/daily-feed`)
+        // 3. [수정] 최신 피드 API 주소 변경
+        fetch(`${API_BASE_URL}/api/v1/daily-feed`)
             .then(res => res.json())
             .then(data => {
                 if (data.error) throw new Error(data.error);
                 setDailyFeed(data.transactions);
             })
             .catch(err => setFeedError(err.message));
+    };
+
+    // 페이지가 열릴 때 1번만 최신 피드를 가져옴
+    useEffect(() => {
+        fetchDailyFeed();
     }, []);
 
 
@@ -70,8 +80,8 @@ function App() {
         setTransactions(null);
         setQuote(null);
 
-        // 'ticker' state (최종 확정된 값)로 검색
-        const url = `http://localhost:8080/api/v1/insider-trades?ticker=${ticker}&period=${period}&filter=${filter}`;
+        // 4. [수정] 메인 검색 API 주소 변경
+        const url = `${API_BASE_URL}/api/v1/insider-trades?ticker=${ticker}&period=${period}&filter=${filter}`;
 
         setSuggestions([]); // 검색 누르면 추천 목록 숨기기
 
@@ -89,14 +99,14 @@ function App() {
             });
     };
 
-    // 4. 자동완성 목록에서 항목을 '클릭'했을 때 실행되는 함수
+    // 자동완성 목록에서 항목을 '클릭'했을 때 실행되는 함수
     const handleSuggestionClick = (symbol) => {
         setTicker(symbol); // '확정된' 티커 state를 이 심볼로 변경
         setSearchTerm(symbol); // 검색창의 실시간 값도 변경
         setSuggestions([]); // 목록 숨기기
     };
 
-    // 5. 검색창의 'onChange' 이벤트를 처리하는 함수
+    // 검색창의 'onChange' 이벤트를 처리하는 함수
     const handleSearchChange = (e) => {
         const value = e.target.value.toUpperCase();
         setSearchTerm(value); // 실시간 입력값 state 변경
@@ -113,18 +123,17 @@ function App() {
             <div className="container">
                 <div className="main-content">
 
-                    {/* 6. 검색 영역 구조 변경 */}
+                    {/* 검색 영역 */}
                     <div className="search-bar">
 
-                        {/* 7. input + 자동완성 목록 래퍼 */}
                         <div className="search-input-wrapper">
                             <input
                                 type="text"
-                                value={ticker} // 'searchTerm' 대신 'ticker' (확정된 값)를 보여줌
-                                onChange={handleSearchChange} // 8. 새 핸들러 연결
+                                value={ticker}
+                                onChange={handleSearchChange}
                                 placeholder="티커 입력 (예: TSLA)"
                             />
-                            {/* 9. 자동완성 목록 렌더링 */}
+                            {/* 자동완성 목록 렌더링 */}
                             {suggestions.length > 0 && (
                                 <ul className="suggestions-list">
                                     {suggestions.map((suggestion) => (
@@ -139,7 +148,7 @@ function App() {
                             )}
                         </div>
 
-                        {/* (필터 드롭다운 및 버튼 - 동일) */}
+                        {/* 필터 드롭다운 및 버튼 */}
                         <select value={period} onChange={(e) => setPeriod(e.target.value)}>
                             <option value="3m">최근 3개월</option>
                             <option value="6m">최근 6개월</option>
@@ -154,9 +163,10 @@ function App() {
                         </button>
                     </div>
 
-                    {/* (이하 주가 지표, 테이블, 사이드바 코드는 모두 동일) */}
+                    {/* 오류 메시지 */}
                     {error && <p style={{ color: 'red' }}>검색 오류: {error}</p>}
 
+                    {/* 주가 지표 */}
                     {quote && (
                         <div className="quote-box">
                             {quote.error ? ( <p style={{ color: 'red' }}>주가 지표 로드 실패: {quote.error}</p> ) : (
@@ -184,11 +194,14 @@ function App() {
                         </div>
                     )}
 
+                    {/* 메인 테이블 */}
                     {transactions && (
                         <RenderMainTable transactions={transactions} filterType={filter} />
                     )}
 
                 </div>
+
+                {/* 사이드바 */}
                 <div className="sidebar">
                     <RenderFeed feed={dailyFeed} error={feedError} />
                 </div>

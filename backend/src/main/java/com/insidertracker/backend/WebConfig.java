@@ -9,8 +9,9 @@ public class WebConfig implements WebMvcConfigurer {
 
     @Override
     public void addCorsMappings(CorsRegistry registry) {
-        registry.addMapping("/api/**") // 1. /api/** 로 들어오는 모든 요청을
-                .allowedOrigins("http://localhost:3000") // 2. http://localhost:3000 (React) 주소로부터의 요청을 허용한다
-                .allowedMethods("GET", "POST", "PUT", "DELETE", "OPTIONS"); // 3. 허용할 HTTP 메소드
+        registry.addMapping("/api/**")
+                // 🔽🔽 [수정] 🔽🔽
+                .allowedOrigins("https://insider-trading-tracker.vercel.app") // Vercel 주소
+                .allowedMethods("GET", "POST", "PUT", "DELETE", "OPTIONS");
     }
 }
