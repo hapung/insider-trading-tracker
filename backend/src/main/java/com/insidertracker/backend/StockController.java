@@ -39,9 +39,6 @@ public class StockController {
             e.printStackTrace();
 
             // 1. 🔽🔽 [수정] 🔽🔽
-            // "깨진" JSON 문자열을 직접 만들지 않습니다.
-            // return new ResponseEntity<>("{\"error\":\"" + e.getMessage() + "\"}", ...);
-
             // "안전한" JSON 객체를 ObjectMapper로 만듭니다.
             ObjectNode errorNode = objectMapper.createObjectNode();
             errorNode.put("error", e.getMessage()); // e.getMessage()에 따옴표가 있어도 안전
