@@ -15,13 +15,12 @@ function App() {
     const [error, setError] = useState(null);
     const [dailyFeed, setDailyFeed] = useState(null);
     const [feedError, setFeedError] = useState(null);
-
-    // --- '자동완성' State ---
     const [searchTerm, setSearchTerm] = useState("AAPL");
     const [suggestions, setSuggestions] = useState([]);
 
+    // --- 함수 선언부 ---
 
-    // --- '자동완성' API 호출 (useEffect) ---
+    // '자동완성' API 호출 (useEffect)
     useEffect(() => {
         if (searchTerm.trim() === "") {
             setSuggestions([]);
@@ -47,8 +46,7 @@ function App() {
     }, [searchTerm]);
 
 
-    // 1. 🔽🔽 [수정] 🔽🔽
-    // '최신 피드' API 호출 함수 (이제 '자동'이 아님)
+    // '최신 피드' API 호출 함수 (수동)
     const fetchDailyFeed = () => {
         console.log("Fetching daily feed...");
         setFeedError(null);
@@ -63,21 +61,21 @@ function App() {
             .catch(err => setFeedError(err.message));
     };
 
-    // 2. 🔽🔽 [수정] 🔽🔽
-    // 페이지 로드 시 '자동'으로 피드를 부르던 useEffect를 "삭제"합니다.
+    // 🔽🔽 [수정] 🔽🔽
+    // 페이지 로드 시 '자동'으로 피드를 부르던 useEffect를 "삭제"했습니다.
     // useEffect(() => {
     //   fetchDailyFeed();
     // }, []);
 
 
-    // '검색' 버튼 함수 (동일)
+    // '검색' 버튼 함수
     const fetchData = () => {
         setLoading(true);
         setError(null);
         setTransactions(null);
         setQuote(null);
         const url = `${API_BASE_URL}/api/v1/insider-trades?ticker=${ticker}&period=${period}&filter=${filter}`;
-        console.log("Fetching URL: ", url);
+        setSuggestions([]); // 검색 누르면 추천 목록 숨기기
         fetch(url)
             .then(response => response.json())
             .then(jsonData => {
@@ -104,7 +102,6 @@ function App() {
         setTicker(value);
     };
 
-
     // --- 렌더링 ---
     return (
         <div className="App">
@@ -114,7 +111,7 @@ function App() {
             <div className="container">
                 <div className="main-content">
 
-                    {/* (검색 영역 - 동일) */}
+                    {/* 검색 영역 */}
                     <div className="search-bar">
                         <div className="search-input-wrapper">
                             <input
@@ -150,24 +147,44 @@ function App() {
                         </button>
                     </div>
 
-                    {/* (주가 지표, 테이블 - 동일) */}
                     {error && <p style={{ color: 'red' }}>검색 오류: {error}</p>}
+
                     {quote && (
                         <div className="quote-box">
-                            {/* ... (주가 지표 코드) ... */}
+                            {quote.error ? ( <p style={{ color: 'red' }}>주가 지표 로드 실패: {quote.error}</p> ) : (
+                                <>
+                                    <div className="quote-item">
+                                        <h3>현재가 (Current Price)</h3>
+                                        <p className={getChangeClassName(quote.d)}>${(quote.c || 0).toFixed(2)}</p>
+                                    </div>
+                                    <div className="quote-item">
+                                        <h3>당일 변동 (Change)</h3>
+                                        <p className={getChangeClassName(quote.d)}>
+                                            {(quote.d || 0).toFixed(2)} ({(quote.dp || 0).toFixed(2)}%)
+                                        </p>
+                                    </div>
+                                    <div className="quote-item">
+                                        <h3>당일 고가 (High)</h3>
+                                        <p>${(quote.h || 0).toFixed(2)}</p>
+                                    </div>
+                                    <div className="quote-item">
+                                        <h3>당일 저가 (Low)</h3>
+                                        <p>${(quote.l || 0).toFixed(2)}</p>
+                                    </div>
+                                </>
+                            )}
                         </div>
                     )}
+
                     {transactions && (
                         <RenderMainTable transactions={transactions} filterType={filter} />
                     )}
-
                 </div>
 
-                {/* --- 3. 🔽🔽 [수정] 🔽🔽 사이드바 --- */}
+                {/* --- 사이드바 (수동 버튼 추가) --- */}
                 <div className="sidebar">
                     <div className="feed-header">
                         <h2>최신 P/S 거래</h2>
-                        {/* "새로고침" 버튼 추가! */}
                         <button onClick={fetchDailyFeed} className="feed-refresh-btn">
                             ↻
                         </button>
@@ -179,10 +196,7 @@ function App() {
     );
 }
 
-// (이하 헬퍼 함수들, RenderMainTable, RenderFeed 컴포넌트는 이전과 100% 동일합니다)
-// ... (getTransactionType, getChangeClassName, processFeedData, processMainData) ...
-// ... (RenderMainTable, RenderFeed) ...
-
+// --- 헬퍼 함수들 (이하 동일) ---
 function getTransactionType(code) {
     switch (code) {
         case 'P': return 'Buy (매수)';
@@ -283,7 +297,7 @@ function RenderFeed({ feed, error }) {
         return <p style={{ color: 'red' }}>피드 오류: {error}</p>;
     }
     if (!feed) {
-        return <p>피드 '새로고침' 버튼을 눌러주세요.</p>; // 4. [수정] 안내 문구 변경
+        return <p>피드 '새로고침(↻)' 버튼을 눌러주세요.</p>;
     }
     if (processedFeed.length === 0) {
         return <p>최근 '진짜' P/S 거래가 없습니다.</p>;
@@ -315,10 +329,5 @@ function RenderFeed({ feed, error }) {
         </>
     );
 }
-// 5. 🔽🔽 [수정] 🔽🔽
-// quote-box 렌더링 코드를 실수로 App() 밖으로 뺐었네요.
-// RenderMainTable, RenderFeed처럼 별도 컴포넌트로 만들거나,
-// App() 함수 안으로 'quote && (...)' 코드를 다시 가져와야 합니다.
-// (이전 코드에서 복사해서 App() 안, return()의 .main-content 안에 다시 넣으시면 됩니다.)
 
 export default App;
