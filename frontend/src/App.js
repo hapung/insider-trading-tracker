@@ -1,12 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import './App.css';
 
-// 1. 백엔드(Render) 주소를 "변수"로 만듭니다.
-const API_BASE_URL = "https://insider-trading-tracker.onrender.com"; // 님의 Render URL
+// 백엔드(Render) 주소
+const API_BASE_URL = "https://insider-trading-tracker.onrender.com";
 
 function App() {
     // --- State 선언부 ---
-    const [ticker, setTicker] = useState("AAPL"); // 현재 input에 입력된 값
+    const [ticker, setTicker] = useState("AAPL");
     const [period, setPeriod] = useState("12m");
     const [filter, setFilter] = useState("PS_ONLY");
     const [transactions, setTransactions] = useState(null);
@@ -15,25 +15,19 @@ function App() {
     const [error, setError] = useState(null);
     const [dailyFeed, setDailyFeed] = useState(null);
     const [feedError, setFeedError] = useState(null);
-
-    // --- '자동완성' 기능용 State ---
-    const [searchTerm, setSearchTerm] = useState("AAPL"); // 검색창에 "실시간으로" 입력 중인 값
-    const [suggestions, setSuggestions] = useState([]); // 자동완성 추천 목록
+    const [searchTerm, setSearchTerm] = useState("AAPL");
+    const [suggestions, setSuggestions] = useState([]);
 
     // --- 함수 선언부 ---
 
-    // useEffect: 'searchTerm' (실시간 입력값)이 바뀔 때마다 실행됨
+    // '자동완성' API 호출 (useEffect)
     useEffect(() => {
-        if (searchTerm.trim() === "") {
+        if (searchTerm.trim() === "" || searchTerm === ticker) {
             setSuggestions([]);
             return;
         }
-
-        // 0.5초 뒤에 API 호출 (Debounce)
         const delayDebounceFn = setTimeout(() => {
             console.log("Fetching suggestions for: ", searchTerm);
-
-            // 2. [수정] 자동완성 API 주소 변경
             fetch(`${API_BASE_URL}/api/v1/search?q=${searchTerm}`)
                 .then(response => response.json())
                 .then(jsonData => {
@@ -47,17 +41,17 @@ function App() {
                     console.error("Suggestion fetch error:", err.message);
                     setSuggestions([]);
                 });
-        }, 500);
-
+        }, 300); // 딜레이 0.3초
         return () => clearTimeout(delayDebounceFn);
-    }, [searchTerm]);
+    }, [searchTerm, ticker]);
 
 
-    // '최신 피드' API 호출 함수
+    // '최신 피드' API 호출 함수 (수동)
     const fetchDailyFeed = () => {
         console.log("Fetching daily feed...");
+        setFeedError(null);
+        setDailyFeed(null);
 
-        // 3. [수정] 최신 피드 API 주소 변경
         fetch(`${API_BASE_URL}/api/v1/daily-feed`)
             .then(res => res.json())
             .then(data => {
@@ -67,10 +61,10 @@ function App() {
             .catch(err => setFeedError(err.message));
     };
 
-    // 페이지가 열릴 때 1번만 최신 피드를 가져옴
-    useEffect(() => {
-        fetchDailyFeed();
-    }, []);
+    // 🔽🔽 (API 충돌 방지) 페이지 로드 시 자동 호출 "삭제" 🔽🔽
+    // useEffect(() => {
+    //   fetchDailyFeed();
+    // }, []);
 
 
     // '검색' 버튼 함수
@@ -80,10 +74,10 @@ function App() {
         setTransactions(null);
         setQuote(null);
 
-        // 4. [수정] 메인 검색 API 주소 변경
         const url = `${API_BASE_URL}/api/v1/insider-trades?ticker=${ticker}&period=${period}&filter=${filter}`;
 
-        setSuggestions([]); // 검색 누르면 추천 목록 숨기기
+        setSearchTerm(ticker); // 검색창 텍스트를 확정된 티커로 동기화
+        setSuggestions([]); // 추천 목록 숨기기
 
         fetch(url)
             .then(response => response.json())
@@ -99,18 +93,18 @@ function App() {
             });
     };
 
-    // 자동완성 목록에서 항목을 '클릭'했을 때 실행되는 함수
+    // 자동완성 목록 '클릭' 핸들러
     const handleSuggestionClick = (symbol) => {
-        setTicker(symbol); // '확정된' 티커 state를 이 심볼로 변경
-        setSearchTerm(symbol); // 검색창의 실시간 값도 변경
-        setSuggestions([]); // 목록 숨기기
+        setTicker(symbol);
+        setSearchTerm(symbol);
+        setSuggestions([]);
     };
 
-    // 검색창의 'onChange' 이벤트를 처리하는 함수
+    // 검색창 'onChange' 핸들러
     const handleSearchChange = (e) => {
         const value = e.target.value.toUpperCase();
-        setSearchTerm(value); // 실시간 입력값 state 변경
-        setTicker(value); // 확정된 티커 state도 같이 변경 (엔터키 검색 대비)
+        setSearchTerm(value); // 실시간 입력값
+        setTicker(value); // (엔터키 검색 대비)
     };
 
 
@@ -125,15 +119,13 @@ function App() {
 
                     {/* 검색 영역 */}
                     <div className="search-bar">
-
                         <div className="search-input-wrapper">
                             <input
                                 type="text"
-                                value={ticker}
+                                value={ticker} // '확정된' Ticker 값을 보여줌
                                 onChange={handleSearchChange}
                                 placeholder="티커 입력 (예: TSLA)"
                             />
-                            {/* 자동완성 목록 렌더링 */}
                             {suggestions.length > 0 && (
                                 <ul className="suggestions-list">
                                     {suggestions.map((suggestion) => (
@@ -147,8 +139,6 @@ function App() {
                                 </ul>
                             )}
                         </div>
-
-                        {/* 필터 드롭다운 및 버튼 */}
                         <select value={period} onChange={(e) => setPeriod(e.target.value)}>
                             <option value="3m">최근 3개월</option>
                             <option value="6m">최근 6개월</option>
@@ -163,10 +153,9 @@ function App() {
                         </button>
                     </div>
 
-                    {/* 오류 메시지 */}
                     {error && <p style={{ color: 'red' }}>검색 오류: {error}</p>}
 
-                    {/* 주가 지표 */}
+                    {/* 🔽🔽 [수정] 🔽🔽 주가 지표 (quote) 렌더링 코드 복구 */}
                     {quote && (
                         <div className="quote-box">
                             {quote.error ? ( <p style={{ color: 'red' }}>주가 지표 로드 실패: {quote.error}</p> ) : (
@@ -198,11 +187,16 @@ function App() {
                     {transactions && (
                         <RenderMainTable transactions={transactions} filterType={filter} />
                     )}
-
                 </div>
 
                 {/* 사이드바 */}
                 <div className="sidebar">
+                    <div className="feed-header">
+                        <h2>최신 P/S 거래</h2>
+                        <button onClick={fetchDailyFeed} className="feed-refresh-btn">
+                            ↻
+                        </button>
+                    </div>
                     <RenderFeed feed={dailyFeed} error={feedError} />
                 </div>
             </div>
@@ -210,8 +204,7 @@ function App() {
     );
 }
 
-// --- 헬퍼 함수들 ---
-
+// --- 헬퍼 함수들 (이하 동일) ---
 function getTransactionType(code) {
     switch (code) {
         case 'P': return 'Buy (매수)';
@@ -222,13 +215,10 @@ function getTransactionType(code) {
         default: return code;
     }
 }
-
 function getChangeClassName(change) {
     if (change === undefined || change === null) return '';
     return change > 0 ? 'positive' : 'negative';
 }
-
-// '최신 피드' 데이터를 렌더링하기 편하게 "가공"하는 헬퍼 함수
 function processFeedData(feed) {
     const psTrades = [];
     if (!feed) return psTrades;
@@ -250,8 +240,6 @@ function processFeedData(feed) {
     });
     return psTrades;
 }
-
-// '메인 테이블'용 헬퍼 함수
 function processMainData(transactions, filterType) {
     const allTrades = [];
     if (!transactions) return allTrades;
@@ -277,17 +265,12 @@ function processMainData(transactions, filterType) {
     return allTrades;
 }
 
-
 // --- 헬퍼 컴포넌트들 ---
-
-// 메인 테이블 렌더링 컴포넌트
 function RenderMainTable({ transactions, filterType }) {
     const processedTransactions = processMainData(transactions, filterType);
-
     if (processedTransactions.length === 0) {
         return <p>선택한 조건의 거래 내역이 없습니다.</p>;
     }
-
     return (
         <table className="results-table">
             <thead>
@@ -318,26 +301,19 @@ function RenderMainTable({ transactions, filterType }) {
         </table>
     );
 }
-
-// 사이드바 피드 렌더링 컴포넌트
 function RenderFeed({ feed, error }) {
     const processedFeed = processFeedData(feed);
-
     if (error) {
         return <p style={{ color: 'red' }}>피드 오류: {error}</p>;
     }
-
     if (!feed) {
-        return <p>피드 로딩 중...</p>;
+        return <p>피드 '새로고침(↻)' 버튼을 눌러주세요.</p>;
     }
-
     if (processedFeed.length === 0) {
         return <p>최근 '진짜' P/S 거래가 없습니다.</p>;
     }
-
     return (
         <>
-            <h2>최신 P/S 거래</h2>
             <table className="feed-table">
                 <thead>
                 <tr>
