@@ -19,8 +19,10 @@ import java.util.concurrent.ConcurrentHashMap;
 @RequiredArgsConstructor
 public class ApiService {
 
+
     @Qualifier("secApiWebClient")
     private final WebClient secApiWebClient;
+
 
     private final ObjectMapper objectMapper = new ObjectMapper();
 
@@ -162,7 +164,7 @@ public class ApiService {
                     .bodyValue(payload.toString())
                     .retrieve()
                     .bodyToMono(String.class)
-                    .timeout(java.time.Duration.ofSeconds(10))
+                    .timeout(java.time.Duration.ofSeconds(30))
                     .onErrorResume(e -> Mono.just("{\"error\":\"sec-api.io (feed) 호출 실패: " + e.getMessage() + "\"}"))
                     .block();
 
@@ -218,4 +220,5 @@ public class ApiService {
             return errorNode.toString();
         }
     }
+
 }
