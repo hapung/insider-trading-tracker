@@ -39,10 +39,13 @@ public class ApiService {
     private final Map<String, CacheEntry> cache = new ConcurrentHashMap<>();
     private final Map<String, Instant> lastCallTime = new ConcurrentHashMap<>();
 
+    // 🔽🔽 [핵심] 데일리 피드 전용 캐시 변수 (RAM에 저장됨)
+    private CacheEntry dailyFeedCache = null;
+
     private record CacheEntry(String data, Instant savedAt) {}
 
     /**
-     * [sec-api.io] 내부자 거래 조회 (rate limit + 캐시 적용)
+     * [sec-api.io] 내부자 거래 조회 (rate limit + 24시간 캐시 적용)
      */
     public String getInsiderTransactions(String ticker, String period, String filter) throws Exception {
         System.out.println("### [SEC-API] 내부자 거래 조회 시작: " + ticker);
@@ -56,14 +59,15 @@ public class ApiService {
         }
         lastCallTime.put(ticker, now);
 
-        // --- 캐시 조회 (1시간 유효)
+        // --- 캐시 조회 (24시간 유효)
         CacheEntry cacheEntry = cache.get(ticker);
-        if (cacheEntry != null && now.isBefore(cacheEntry.savedAt().plusSeconds(3600))) {
-            System.out.println("### 캐시 사용: " + ticker);
+        // [수정됨] 86400초 = 24시간
+        if (cacheEntry != null && now.isBefore(cacheEntry.savedAt().plusSeconds(86400))) {
+            System.out.println("### [캐시 사용] (24시간 유효): " + ticker);
             return cacheEntry.data();
         }
 
-        // --- 쿼리 구성
+        // --- 쿼리 구성 (이하 동일)
         long monthsToSubtract = Long.parseLong(period.replace("m", ""));
         LocalDate today = LocalDate.now();
         LocalDate fromDate = today.minusMonths(monthsToSubtract);
@@ -98,7 +102,7 @@ public class ApiService {
                     .bodyValue(payload.toString())
                     .retrieve()
                     .bodyToMono(String.class)
-                    .timeout(java.time.Duration.ofSeconds(10))
+                    .timeout(java.time.Duration.ofSeconds(25))
                     .onErrorResume(e -> Mono.just("{\"error\":\"sec-api.io 호출 실패: " + e.getMessage() + "\"}"))
                     .block();
 
@@ -127,7 +131,6 @@ public class ApiService {
         ObjectNode errorNode = objectMapper.createObjectNode();
         errorNode.put("error", message);
 
-        // 캐시된 데이터가 있으면 fallback
         if (!cache.isEmpty()) {
             String anyCache = cache.values().iterator().next().data();
             System.out.println("### 캐시 fallback 반환");
@@ -137,11 +140,20 @@ public class ApiService {
     }
 
     /**
-     * [최신 피드]
+     * [최신 피드] (24시간 캐시 적용)
      */
     public String getDailyFeed() {
+        // 🔽🔽 [핵심 로직] 캐시 확인
+        Instant now = Instant.now();
+        // 86400초 = 24시간
+        if (dailyFeedCache != null && now.isBefore(dailyFeedCache.savedAt().plusSeconds(86400))) {
+            System.out.println("### [캐시 사용] (24시간 유효): Daily Feed");
+            return dailyFeedCache.data();
+        }
+        // 🔽🔽 캐시가 없거나 만료되었을 때만 아래 API 호출 실행
+
         try {
-            System.out.println("### [SEC-API] 최신 피드 요청");
+            System.out.println("### [SEC-API] 최신 피드 요청 (API 호출 발생)");
 
             String query = "(nonDerivativeTable.transactions.coding.code:\"P\"" +
                     " OR nonDerivativeTable.transactions.coding.code:\"S\")";
@@ -164,13 +176,16 @@ public class ApiService {
                     .bodyValue(payload.toString())
                     .retrieve()
                     .bodyToMono(String.class)
-                    .timeout(java.time.Duration.ofSeconds(30))
+                    .timeout(java.time.Duration.ofSeconds(25))
                     .onErrorResume(e -> Mono.just("{\"error\":\"sec-api.io (feed) 호출 실패: " + e.getMessage() + "\"}"))
                     .block();
 
             if (jsonResponse == null || jsonResponse.contains("\"error\"")) {
                 throw new RuntimeException("sec-api.io (feed) 응답 오류: " + jsonResponse);
             }
+
+            // 🔽🔽 [핵심 로직] 성공 시 캐시에 저장
+            dailyFeedCache = new CacheEntry(jsonResponse, now);
 
             return jsonResponse;
         } catch (Exception e) {
@@ -181,6 +196,7 @@ public class ApiService {
         }
     }
 
+    // --- Finnhub API (이하 동일) ---
     public String getQuote(String ticker) {
         try {
             String result = finnhubWebClient.get()

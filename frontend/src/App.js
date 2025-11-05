@@ -307,7 +307,8 @@ function RenderFeed({ feed, error }) {
         return <p style={{ color: 'red' }}>피드 오류: {error}</p>;
     }
     if (!feed) {
-        return <p>피드 '새로고침(↻)' 버튼을 눌러주세요.</p>;
+        // 🔽🔽 [수정] 안내 문구 변경
+        return <p>피드 '새로고침(↻)' 버튼을 눌러주세요.<br/>(API 호출이 발생하며, 하루에 한 번만 갱신됩니다.)</p>;
     }
     if (processedFeed.length === 0) {
         return <p>최근 '진짜' P/S 거래가 없습니다.</p>;
